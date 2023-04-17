@@ -2,53 +2,34 @@ import os
 import sys
 import pathlib
 import matplotlib.pyplot as plt
+from src.classes.clothes_dataset import ClothesDataset
 
 
-def retrieve_info(path):
-    """
-    Get information about a dataset specified by given path
-
-    :param path: path to the dataset's root folder
-    :return:
-        - dataset_name - Name of the dataset
-        - class_names - List of classes from a dataset sorted by name
-        - count_by_class - List of images for each class sorted according to class_names
-    """
-    dataset_name = str(path).split("\\")[-1]
-    class_names = sorted([item.name for item in path.glob("*")])
-    count_by_class = [len(item) for item in (list(path.glob(f"{class_name}/*.jpg")) for class_name in class_names)]
-    return dataset_name, class_names, count_by_class
-
-
-def text_summary(dataset_name, class_names, count_by_class):
+def text_summary(dataset):
     """
     Print information about the dataset to the console
 
-    :param dataset_name: Name of the dataset
-    :param class_names: List of classes from a dataset sorted by name
-    :param count_by_class: List of images for each class sorted according to class_names
+    :param dataset: dataset instance
     """
     print("---------------------------")
-    print(f"Dataset - {dataset_name}")
+    print(f"Dataset - {dataset.name}")
     print("---------------------------")
-    for name, count in zip(class_names, count_by_class):
+    for name, count in zip(dataset.classes, dataset.count_by_class):
         print(f"{name}: {count}")
     print("---------------------------")
-    print(f"Sum: {sum(count_by_class)}")
+    print(f"Sum: {len(dataset)}")
     print("---------------------------")
 
 
-def plot_statistics(dataset_name, class_names, count_by_class):
+def plot_statistics(dataset):
     """
     Bar plot of dataset's statistics
 
-    :param dataset_name: Name of the dataset
-    :param class_names: List of classes from a dataset sorted by name
-    :param count_by_class: List of images for each class sorted according to class_names
+    :param dataset: dataset instance
     """
     fig, ax = plt.subplots()
-    ax.bar(class_names, count_by_class)
-    ax.set_title(f"Statistics of {dataset_name}")
+    ax.bar(dataset.classes, dataset.count_by_class)
+    ax.set_title(f"Statistics of {dataset.name}")
     ax.set_xlabel("Class name")
     ax.set_ylabel("Image count")
     plt.show()
@@ -60,6 +41,6 @@ if __name__ == "__main__":
         raise ValueError(f"{path} is not a valid path.")
     if os.path.isfile(path):
         raise ValueError(f"{path} is not a path to a directory.")
-    dataset_name, class_names, count_by_class = retrieve_info(path)
-    text_summary(dataset_name, class_names, count_by_class)
-    plot_statistics(dataset_name, class_names, count_by_class)
+    dataset = ClothesDataset(path)
+    text_summary(dataset)
+    plot_statistics(dataset)
