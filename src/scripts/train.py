@@ -22,6 +22,7 @@ if __name__ == "__main__":
     argparser.add_argument("--num-epochs", type=int, default=100)
     argparser.add_argument("--batch-size", type=int, default=32)
     argparser.add_argument("--learning-rate", type=float, default=0.001)
+    argparser.add_argument("--optimization", type=str, default="sgd")
     argparser.add_argument("--log-every", type=int, default=1)
     argparser.add_argument("--mean", type=float, nargs='+',
                            help="mean that was calculated on training set. Three values one for each channel")
@@ -89,7 +90,12 @@ if __name__ == "__main__":
     model = CNN(num_classes=5).to(device)
 
     loss_fcn = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+    if args.optimization == "sgd":
+        optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+    elif args.optimization == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    else:
+        raise Exception(f"There is not such optimizer as {args.optimization}")
 
     history = []
     samples_per_sec = []
