@@ -6,7 +6,8 @@ import torch as th
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-from src.classes.cnn_model import CNN
+# from src.classes.AlexNet import AlexNet
+from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
 from tqdm import tqdm
 
@@ -43,7 +44,9 @@ if __name__ == "__main__":
     test_dataset = ClothesDataset(test_path, transform=my_transforms)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 
+    # model = AlexNet(num_classes=5).to(device)
     model = CNN(num_classes=5).to(device)
+
     model.load_state_dict(th.load(args.model_path))
     loss_fcn = nn.CrossEntropyLoss()
 

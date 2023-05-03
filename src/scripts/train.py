@@ -10,7 +10,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-from src.classes.cnn_model import CNN
+# from src.classes.AlexNet import AlexNet
+from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
 from tqdm import tqdm
 
@@ -81,11 +82,12 @@ if __name__ == "__main__":
         train_dataset = ClothesDataset(train_path, transform=updated_transforms)
         val_dataset = ClothesDataset(val_path, transform=updated_transforms)
 
-
-
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
+
+    # model = AlexNet(num_classes=5).to(device)
     model = CNN(num_classes=5).to(device)
+
     loss_fcn = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
 
@@ -147,7 +149,8 @@ if __name__ == "__main__":
         train_accuracy = 100. * train_correct / train_total_processed
         val_loss /= val_total_processed
         val_accuracy = 100. * val_correct / val_total_processed
-        history.append({'epoch': epoch, 'train_accuracy': train_accuracy.item(), 'val_accuracy': val_accuracy.item()})
+        history.append({'epoch': epoch, 'train_accuracy': train_accuracy.item(), 'val_accuracy': val_accuracy.item(),
+                        'train_loss': train_loss, 'val_loss': val_loss})
         toc = time.time()
         print('Epoch: {} Train Loss: {:.4f} Train Accuracy: {:.2f}% Validation Loss: {:.4f} Validation Accuracy: {:.2f}% Time: {:.4f}'.format(
             epoch, train_loss, train_accuracy, val_loss, val_accuracy, toc - tic))
