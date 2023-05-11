@@ -13,6 +13,7 @@ import torchvision.transforms as transforms
 # from src.classes.AlexNet import AlexNet
 from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
+from src.classes.best_model_saver import BestModelSaver
 from tqdm import tqdm
 
 
@@ -88,6 +89,7 @@ if __name__ == "__main__":
 
     # model = AlexNet(num_classes=5).to(device)
     model = CNN(num_classes=5).to(device)
+    best_model_saver = BestModelSaver(args.save_model_path)
 
     loss_fcn = nn.CrossEntropyLoss()
     if args.optimization == "sgd":
@@ -114,7 +116,7 @@ if __name__ == "__main__":
             train_loss += loss.item() * inputs.size(0)
             train_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
 
-            if step % args.log_every == 0:
+            if step % args.log_every == 0 and (step != 0 or args.log_every == 1):
                 batch_time = len(outputs) / (time.time() - tic_step)
                 batch_acc = (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum() / len(inputs)
                 batch_loss = loss.item()
@@ -150,6 +152,7 @@ if __name__ == "__main__":
         history.append({'epoch': epoch, 'train_accuracy': train_accuracy.item(), 'val_accuracy': val_accuracy.item(),
                         'train_loss': train_loss, 'val_loss': val_loss})
         toc = time.time()
+        best_model_saver(val_accuracy, model, optimizer, epoch)
         print('Epoch: {} Train Loss: {:.4f} Train Accuracy: {:.2f}% Validation Loss: {:.4f} Validation Accuracy: {:.2f}% Time: {:.4f}'.format(
             epoch, train_loss, train_accuracy, val_loss, val_accuracy, toc - tic))
 
@@ -158,4 +161,3 @@ if __name__ == "__main__":
     save_log_path = os.path.join(args.training_log_folder_path, filename)
     history_df = pd.DataFrame(history)
     history_df.to_csv(save_log_path, index=False)
-    th.save(model.state_dict(), args.save_model_path)
