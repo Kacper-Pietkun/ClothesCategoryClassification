@@ -98,13 +98,11 @@ if __name__ == "__main__":
         raise Exception(f"There is not such optimizer as {args.optimization}")
 
     history = []
-    samples_per_sec = []
     for epoch in range(args.num_epochs):
         tic = time.time()
         model.train()
         train_loss = 0
         train_correct = 0
-        train_total_processed = 0
         for step, (inputs, labels) in enumerate(train_dataloader):
             tic_step = time.time()
             inputs, labels = inputs.to(device), labels.to(device)
@@ -113,27 +111,23 @@ if __name__ == "__main__":
             loss = loss_fcn(outputs, labels)
             loss.backward()
             optimizer.step()
-
-            train_loss += loss.item()
+            train_loss += loss.item() * inputs.size(0)
             train_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
-            train_total_processed += len(outputs)
-            samples_per_sec.append(len(inputs) / (time.time() - tic_step))
 
             if step % args.log_every == 0:
-                going_acc = train_correct / train_total_processed
-                going_loss = train_loss / train_total_processed
-                gpu_mem_alloc = (
-                    th.cuda.max_memory_allocated() / 1000000
-                    if th.cuda.is_available()
-                    else 0
-                )
+                batch_time = len(outputs) / (time.time() - tic_step)
+                batch_acc = (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum() / len(inputs)
+                batch_loss = loss.item()
+                gpu_mem_alloc = (th.cuda.max_memory_allocated() / 1000000 if th.cuda.is_available() else 0)
                 print(
-                    "Epoch {:05d} | Step {:05d} | Loss {:.4f} | Train Acc {:.4f} | Speed (samples/sec) {:.4f} | GPU {:.1f} MB".format(
+                    "Epoch {:05d} | Step {:05d} ({:d}/{:d}) | Loss {:.4f} | Train Acc {:.4f} | Speed (samples/sec) {:.4f} | GPU {:.1f} MB".format(
                         epoch,
                         step,
-                        going_loss,
-                        going_acc,
-                        np.mean(samples_per_sec),
+                        (step + 1) * args.batch_size if (step + 1) * args.batch_size <= len(train_dataloader.sampler) else len(train_dataloader.sampler),
+                        len(train_dataloader.sampler),
+                        batch_loss,
+                        batch_acc,
+                        batch_time,
                         gpu_mem_alloc,
                     )
                 )
@@ -141,20 +135,18 @@ if __name__ == "__main__":
         model.eval()
         val_loss = 0
         val_correct = 0
-        val_total_processed = 0
         with th.no_grad():
             for step, (inputs, labels) in enumerate(val_dataloader):
                 inputs, labels = inputs.to(device), labels.to(device)
                 outputs = model(inputs)
                 loss = loss_fcn(outputs, labels)
-                val_loss += loss.item()
+                val_loss += loss.item() * inputs.size(0)
                 val_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
-                val_total_processed += len(outputs)
 
-        train_loss /= train_total_processed
-        train_accuracy = 100. * train_correct / train_total_processed
-        val_loss /= val_total_processed
-        val_accuracy = 100. * val_correct / val_total_processed
+        train_loss /= len(train_dataloader.sampler)
+        train_accuracy = 100. * train_correct / len(train_dataloader.sampler)
+        val_loss /= len(val_dataloader.sampler)
+        val_accuracy = 100. * val_correct / len(val_dataloader.sampler)
         history.append({'epoch': epoch, 'train_accuracy': train_accuracy.item(), 'val_accuracy': val_accuracy.item(),
                         'train_loss': train_loss, 'val_loss': val_loss})
         toc = time.time()
