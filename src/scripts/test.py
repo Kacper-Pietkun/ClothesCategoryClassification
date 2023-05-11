@@ -47,7 +47,8 @@ if __name__ == "__main__":
     # model = AlexNet(num_classes=5).to(device)
     model = CNN(num_classes=5).to(device)
 
-    model.load_state_dict(th.load(args.model_path))
+    checkpoint = th.load(args.model_path)
+    model.load_state_dict(checkpoint["model_state_dict"])
     loss_fcn = nn.CrossEntropyLoss()
 
     tic = time.time()
