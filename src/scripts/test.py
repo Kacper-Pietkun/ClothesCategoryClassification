@@ -10,11 +10,20 @@ import pandas as pd
 import numpy as np
 import seaborn as sn
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 from tqdm import tqdm
-# from src.classes.AlexNet import AlexNet
+from src.classes.alex_net import AlexNet
 from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
+
+
+def micro_accuracy(cm):
+    return np.trace(cm) / np.sum(cm)
+
+
+def macro_accuracy(cm):
+    accs = np.trace(cm) / (np.trace(cm) + np.sum(cm, axis=1) + np.sum(cm, axis=0) - 2*np.diag(cm))
+    return np.mean(accs)
 
 
 if __name__ == "__main__":
@@ -49,8 +58,8 @@ if __name__ == "__main__":
     test_dataset = ClothesDataset(test_path, transform=my_transforms)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 
-    # model = AlexNet(num_classes=5).to(device)
-    model = CNN(num_classes=5).to(device)
+    model = AlexNet(num_classes=5).to(device)
+    # model = CNN(num_classes=5).to(device)
 
     checkpoint = th.load(args.model_path)
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -78,7 +87,16 @@ if __name__ == "__main__":
     print('Test Loss: {:.4f} Test Accuracy: {:.2f}% Time: {:.4f}'.format(test_loss, test_accuracy, toc - tic))
 
     confusion_matrix = confusion_matrix(y_true, y_pred)
+    print("Confusion matrix")
     print(confusion_matrix)
+
+    print("Classification report: (NOTE THAT FOR MULTI-CLASS ONE-LABEL CLASSIFICATION:"
+          " MICRO-AVG ACCURACY == MICRO-AVG PRECISION == MICRO-AVG RECALL == MICRO-AVG F1-SCORE")
+    print(classification_report(y_true, y_pred, target_names=test_dataset.classes))
+
+    print(f"Micro-avg accuracy: {micro_accuracy(confusion_matrix)}")
+    print(f"Macro-avg accuracy: {macro_accuracy(confusion_matrix)}")
+
     df_cm = pd.DataFrame(confusion_matrix / np.sum(confusion_matrix, axis=1),
                          index=[i for i in test_dataset.classes],
                          columns=[i for i in test_dataset.classes])

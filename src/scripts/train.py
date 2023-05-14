@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-# from src.classes.AlexNet import AlexNet
+from src.classes.alex_net import AlexNet
 from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
 from src.classes.best_model_saver import BestModelSaver
@@ -87,8 +87,8 @@ if __name__ == "__main__":
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
 
-    # model = AlexNet(num_classes=5).to(device)
-    model = CNN(num_classes=5).to(device)
+    model = AlexNet(num_classes=5).to(device)
+    # model = CNN(num_classes=5).to(device)
     best_model_saver = BestModelSaver(args.save_model_path)
 
     loss_fcn = nn.CrossEntropyLoss()
