@@ -6,16 +6,21 @@ import torch as th
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
+import pandas as pd
+import numpy as np
+import seaborn as sn
+from matplotlib import pyplot as plt
+from sklearn.metrics import confusion_matrix
+from tqdm import tqdm
 # from src.classes.AlexNet import AlexNet
 from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
-from tqdm import tqdm
 
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser("Model testing")
     argparser.add_argument("--gpu", type=bool, default=True)
-    argparser.add_argument("--batch-size", type=int, default=32)
+    argparser.add_argument("--batch-size", type=int, default=1)
     argparser.add_argument("--dataset-path", type=str, required=True)
     argparser.add_argument("--model-path", type=str, required=True)
     argparser.add_argument("--mean", type=float, nargs='+', required=True,
@@ -55,15 +60,28 @@ if __name__ == "__main__":
     model.eval()
     test_loss = 0
     test_correct = 0
+    y_pred = []
+    y_true = []
     with th.no_grad():
         for step, (inputs, labels) in enumerate(tqdm(test_dataloader)):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = loss_fcn(outputs, labels)
             test_loss += loss.item() * inputs.size(0)
+            y_true.extend(th.argmax(labels, dim=1).tolist())
+            y_pred.extend(th.argmax(outputs, dim=1).tolist())
             test_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
 
     test_loss /= len(test_dataloader.sampler)
     test_accuracy = 100. * test_correct / len(test_dataloader.sampler)
     toc = time.time()
     print('Test Loss: {:.4f} Test Accuracy: {:.2f}% Time: {:.4f}'.format(test_loss, test_accuracy, toc - tic))
+
+    confusion_matrix = confusion_matrix(y_true, y_pred)
+    print(confusion_matrix)
+    df_cm = pd.DataFrame(confusion_matrix / np.sum(confusion_matrix, axis=1),
+                         index=[i for i in test_dataset.classes],
+                         columns=[i for i in test_dataset.classes])
+    plt.figure(figsize=(12, 7))
+    sn.heatmap(df_cm, annot=True)
+    plt.show()
