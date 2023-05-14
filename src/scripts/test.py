@@ -15,7 +15,7 @@ from tqdm import tqdm
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser("Model testing")
     argparser.add_argument("--gpu", type=bool, default=True)
-    argparser.add_argument("--batch-size", type=int, default=1)
+    argparser.add_argument("--batch-size", type=int, default=32)
     argparser.add_argument("--dataset-path", type=str, required=True)
     argparser.add_argument("--model-path", type=str, required=True)
     argparser.add_argument("--mean", type=float, nargs='+', required=True,
@@ -55,17 +55,15 @@ if __name__ == "__main__":
     model.eval()
     test_loss = 0
     test_correct = 0
-    test_total_processed = 0
     with th.no_grad():
         for step, (inputs, labels) in enumerate(tqdm(test_dataloader)):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = loss_fcn(outputs, labels)
-            test_loss += loss.item()
+            test_loss += loss.item() * inputs.size(0)
             test_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
-            test_total_processed += len(outputs)
 
-    test_loss /= test_total_processed
-    test_accuracy = 100. * test_correct / test_total_processed
+    test_loss /= len(test_dataloader.sampler)
+    test_accuracy = 100. * test_correct / len(test_dataloader.sampler)
     toc = time.time()
     print('Test Loss: {:.4f} Test Accuracy: {:.2f}% Time: {:.4f}'.format(test_loss, test_accuracy, toc - tic))
