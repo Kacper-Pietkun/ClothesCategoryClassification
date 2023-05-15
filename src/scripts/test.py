@@ -6,30 +6,17 @@ import torch as th
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-import pandas as pd
-import numpy as np
-import seaborn as sn
-from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 from tqdm import tqdm
 from src.classes.alex_net import AlexNet
 from src.classes.baisc_cnn import CNN
 from src.classes.clothes_dataset import ClothesDataset
-
-
-def micro_accuracy(cm):
-    return np.trace(cm) / np.sum(cm)
-
-
-def macro_accuracy(cm):
-    accs = np.trace(cm) / (np.trace(cm) + np.sum(cm, axis=1) + np.sum(cm, axis=0) - 2*np.diag(cm))
-    return np.mean(accs)
+from src.classes.metrics import Metrics
 
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser("Model testing")
     argparser.add_argument("--gpu", type=bool, default=True)
-    argparser.add_argument("--batch-size", type=int, default=1)
+    argparser.add_argument("--batch-size", type=int, default=4)
     argparser.add_argument("--dataset-path", type=str, required=True)
     argparser.add_argument("--model-path", type=str, required=True)
     argparser.add_argument("--mean", type=float, nargs='+', required=True,
@@ -54,12 +41,13 @@ if __name__ == "__main__":
         transforms.Normalize(mean=args.mean, std=args.std)
     ])
 
-    test_path = Path(os.path.join(args.dataset_path, "Test"))
+    test_path = Path(os.path.join(args.dataset_path, "Train"))
     test_dataset = ClothesDataset(test_path, transform=my_transforms)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 
-    model = AlexNet(num_classes=5).to(device)
-    # model = CNN(num_classes=5).to(device)
+    num_classes = 5
+    # model = AlexNet(num_classes=num_classes).to(device)
+    model = CNN(num_classes=5).to(device)
 
     checkpoint = th.load(args.model_path)
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -69,16 +57,18 @@ if __name__ == "__main__":
     model.eval()
     test_loss = 0
     test_correct = 0
-    y_pred = []
-    y_true = []
+    y_true = th.empty(0).to(device)
+    y_pred = th.empty(0).to(device)
+    y_probas = th.empty((0, num_classes)).to(device)
     with th.no_grad():
         for step, (inputs, labels) in enumerate(tqdm(test_dataloader)):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = loss_fcn(outputs, labels)
             test_loss += loss.item() * inputs.size(0)
-            y_true.extend(th.argmax(labels, dim=1).tolist())
-            y_pred.extend(th.argmax(outputs, dim=1).tolist())
+            y_true = th.cat((y_true, th.argmax(labels, dim=1)))
+            y_pred = th.cat((y_pred, th.argmax(outputs, dim=1)))
+            y_probas = th.cat((y_probas, outputs))
             test_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
 
     test_loss /= len(test_dataloader.sampler)
@@ -86,20 +76,23 @@ if __name__ == "__main__":
     toc = time.time()
     print('Test Loss: {:.4f} Test Accuracy: {:.2f}% Time: {:.4f}'.format(test_loss, test_accuracy, toc - tic))
 
-    confusion_matrix = confusion_matrix(y_true, y_pred)
+    metrics = Metrics()
+
     print("Confusion matrix")
-    print(confusion_matrix)
+    cm = metrics.get_confusion_matrix(y_true, y_pred)
+    print(cm)
 
-    print("Classification report: (NOTE THAT FOR MULTI-CLASS ONE-LABEL CLASSIFICATION:"
-          " MICRO-AVG ACCURACY == MICRO-AVG PRECISION == MICRO-AVG RECALL == MICRO-AVG F1-SCORE")
-    print(classification_report(y_true, y_pred, target_names=test_dataset.classes))
+    print(metrics.get_classification_report_text(y_true, y_pred, test_dataset.classes))
+    print(metrics.get_classification_report_data(y_true, y_pred, test_dataset.classes))
 
-    print(f"Micro-avg accuracy: {micro_accuracy(confusion_matrix)}")
-    print(f"Macro-avg accuracy: {macro_accuracy(confusion_matrix)}")
+    print(f"Micro-avg accuracy: {metrics.get_micro_accuracy(cm)}")
+    print(f"Macro-avg accuracy: {metrics.get_macro_accuracy(cm)}")
 
-    df_cm = pd.DataFrame(confusion_matrix / np.sum(confusion_matrix, axis=1),
-                         index=[i for i in test_dataset.classes],
-                         columns=[i for i in test_dataset.classes])
-    plt.figure(figsize=(12, 7))
-    sn.heatmap(df_cm, annot=True)
-    plt.show()
+
+    auc_per_class = metrics.get_auc_per_class(y_true, y_probas, num_classes)
+    print(f"AUC per class {auc_per_class}")
+
+    fpr, tpr = metrics.get_fpr_tpr(y_true, y_probas, num_classes)
+
+    metrics.plot_pretty_confusion_matrix(y_true, y_pred, test_dataset.classes)
+    metrics.plot_roc_curves_torch(fpr, tpr, auc_per_class, test_dataset.classes)
