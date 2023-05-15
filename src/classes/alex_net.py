@@ -36,7 +36,8 @@ class AlexNet(nn.Module):
             nn.Linear(4096, 4096),
             nn.ReLU())
         self.fc2 = nn.Sequential(
-            nn.Linear(4096, num_classes))
+            nn.Linear(4096, num_classes),
+            nn.Softmax(dim=1))
 
     def forward(self, x):
         out = self.layer1(x)
