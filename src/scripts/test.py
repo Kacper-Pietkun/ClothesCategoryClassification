@@ -16,7 +16,7 @@ from src.classes.metrics import Metrics
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser("Model testing")
     argparser.add_argument("--gpu", type=bool, default=True)
-    argparser.add_argument("--batch-size", type=int, default=4)
+    argparser.add_argument("--batch-size", type=int, default=1)
     argparser.add_argument("--dataset-path", type=str, required=True)
     argparser.add_argument("--model-path", type=str, required=True)
     argparser.add_argument("--mean", type=float, nargs='+', required=True,

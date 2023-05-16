@@ -23,6 +23,7 @@ class Metrics:
         data["micro_precision"], data["micro_recall"], data["micro_fscore"], _ = precision_recall_fscore_support(y_true.cpu(), y_pred.cpu(), average="micro")
         data["macro_precision"], data["macro_recall"], data["macro_fscore"], _ = precision_recall_fscore_support(y_true.cpu(), y_pred.cpu(), average="macro")
         data["weighted_precision"], data["weighted_recall"], data["weighted_fscore"], _ = precision_recall_fscore_support(y_true.cpu(), y_pred.cpu(), average="weighted")
+        data["micro_accuracy"] = data["micro_precision"]
 
         precision, recall, fscore, support = precision_recall_fscore_support(y_true.cpu(), y_pred.cpu())
         for i, label in enumerate(classes):
