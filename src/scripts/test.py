@@ -46,8 +46,8 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 
     num_classes = 5
-    # model = AlexNet(num_classes=num_classes).to(device)
-    model = CNN(num_classes=5).to(device)
+    model = AlexNet(num_classes=num_classes).to(device)
+    # model = CNN(num_classes=5).to(device)
 
     checkpoint = th.load(args.model_path)
     model.load_state_dict(checkpoint["model_state_dict"])
