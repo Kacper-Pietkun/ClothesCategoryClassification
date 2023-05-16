@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from src.classes.alex_net import AlexNet
 from src.classes.baisc_cnn import CNN
+from src.classes.metrics import Metrics
 from src.classes.clothes_dataset import ClothesDataset
 from src.classes.best_model_saver import BestModelSaver
 from tqdm import tqdm
@@ -30,7 +31,8 @@ if __name__ == "__main__":
     argparser.add_argument("--std", type=float, nargs='+',
                            help="std that was calculated on training set. Three values one for each channel")
     argparser.add_argument("--dataset-path", type=str, required=True)
-    argparser.add_argument("--save-model-path", type=str, required=True)
+    argparser.add_argument("--save-models", type=bool, default=False)
+    argparser.add_argument("--save-model-path", type=str)
     argparser.add_argument("--training-log-folder-path", type=str, required=True)
     args = argparser.parse_args()
 
@@ -87,9 +89,18 @@ if __name__ == "__main__":
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
 
-    model = AlexNet(num_classes=5).to(device)
-    # model = CNN(num_classes=5).to(device)
-    best_model_saver = BestModelSaver(args.save_model_path)
+    num_classes = 5
+    model = AlexNet(num_classes=num_classes).to(device)
+    # model = CNN(num_classes=num_classes).to(device)
+
+    metrics = Metrics()
+
+    if args.save_models is True:
+        best_model_saver_accuracy = BestModelSaver(f"{args.save_model_path}_accuracy.pth")
+        best_model_saver_precision = BestModelSaver(f"{args.save_model_path}_precision.pth")
+        best_model_saver_recall = BestModelSaver(f"{args.save_model_path}_recall.pth")
+        best_model_saver_fscore = BestModelSaver(f"{args.save_model_path}_fscore.pth")
+        best_model_saver_auc = BestModelSaver(f"{args.save_model_path}_auc.pth")
 
     loss_fcn = nn.CrossEntropyLoss()
     if args.optimization == "sgd":
@@ -105,6 +116,9 @@ if __name__ == "__main__":
         model.train()
         train_loss = 0
         train_correct = 0
+        y_true_train = th.empty(0).to(device)
+        y_pred_train = th.empty(0).to(device)
+        y_probas_train = th.empty((0, num_classes)).to(device)
         for step, (inputs, labels) in enumerate(train_dataloader):
             tic_step = time.time()
             inputs, labels = inputs.to(device), labels.to(device)
@@ -115,7 +129,9 @@ if __name__ == "__main__":
             optimizer.step()
             train_loss += loss.item() * inputs.size(0)
             train_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
-
+            y_true_train = th.cat((y_true_train, th.argmax(labels, dim=1)))
+            y_pred_train = th.cat((y_pred_train, th.argmax(outputs, dim=1)))
+            y_probas_train = th.cat((y_probas_train, outputs))
             if step % args.log_every == 0 and (step != 0 or args.log_every == 1):
                 batch_time = len(outputs) / (time.time() - tic_step)
                 batch_acc = (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum() / len(inputs)
@@ -137,6 +153,9 @@ if __name__ == "__main__":
         model.eval()
         val_loss = 0
         val_correct = 0
+        y_true_val = th.empty(0).to(device)
+        y_pred_val = th.empty(0).to(device)
+        y_probas_val = th.empty((0, num_classes)).to(device)
         with th.no_grad():
             for step, (inputs, labels) in enumerate(val_dataloader):
                 inputs, labels = inputs.to(device), labels.to(device)
@@ -144,15 +163,38 @@ if __name__ == "__main__":
                 loss = loss_fcn(outputs, labels)
                 val_loss += loss.item() * inputs.size(0)
                 val_correct += (th.argmax(outputs, dim=1) == th.argmax(labels, dim=1)).float().sum()
+                y_true_val = th.cat((y_true_val, th.argmax(labels, dim=1)))
+                y_pred_val = th.cat((y_pred_val, th.argmax(outputs, dim=1)))
+                y_probas_val = th.cat((y_probas_val, outputs))
 
+        metrics_train = metrics.get_classification_report_data(y_true_train, y_pred_train, train_dataset.classes)
+        metrics_val = metrics.get_classification_report_data(y_true_val, y_pred_val, val_dataset.classes)
+        train_auc = th.mean(metrics.get_auc_per_class(y_true_train, y_probas_train, num_classes)).item()
+        val_auc = th.mean(metrics.get_auc_per_class(y_true_val, y_probas_val, num_classes)).item()
         train_loss /= len(train_dataloader.sampler)
         train_accuracy = 100. * train_correct / len(train_dataloader.sampler)
         val_loss /= len(val_dataloader.sampler)
         val_accuracy = 100. * val_correct / len(val_dataloader.sampler)
-        history.append({'epoch': epoch, 'train_accuracy': train_accuracy.item(), 'val_accuracy': val_accuracy.item(),
-                        'train_loss': train_loss, 'val_loss': val_loss})
+        history.append({'epoch': epoch,
+                        'train_accuracy': train_accuracy.item(),
+                        'val_accuracy': val_accuracy.item(),
+                        'train_loss': train_loss,
+                        'val_loss': val_loss,
+                        "train_macro_precision": metrics_train["macro_precision"],
+                        "val_macro_precision": metrics_val["macro_precision"],
+                        "train_macro_recall": metrics_train["macro_recall"],
+                        "val_macro_recall": metrics_val["macro_recall"],
+                        "train_macro_fscore": metrics_train["macro_fscore"],
+                        "val_macro_fscore": metrics_val["macro_fscore"],
+                        "train_avg_auc": train_auc,
+                        "val_avg_auc": val_auc})
         toc = time.time()
-        best_model_saver(val_accuracy, model, optimizer, epoch)
+        if args.save_models is True:
+            best_model_saver_accuracy(val_accuracy, model, optimizer, epoch)
+            best_model_saver_precision(metrics_val["macro_precision"], model, optimizer, epoch)
+            best_model_saver_recall(metrics_val["macro_recall"], model, optimizer, epoch)
+            best_model_saver_fscore(metrics_val["macro_fscore"], model, optimizer, epoch)
+            best_model_saver_auc(val_auc, model, optimizer, epoch)
         print('Epoch: {} Train Loss: {:.4f} Train Accuracy: {:.2f}% Validation Loss: {:.4f} Validation Accuracy: {:.2f}% Time: {:.4f}'.format(
             epoch, train_loss, train_accuracy, val_loss, val_accuracy, toc - tic))
 
