@@ -41,7 +41,7 @@ if __name__ == "__main__":
         transforms.Normalize(mean=args.mean, std=args.std)
     ])
 
-    test_path = Path(os.path.join(args.dataset_path, "Train"))
+    test_path = Path(os.path.join(args.dataset_path, "Test"))
     test_dataset = ClothesDataset(test_path, transform=my_transforms)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -88,9 +88,9 @@ if __name__ == "__main__":
     print(f"Micro-avg accuracy: {metrics.get_micro_accuracy(cm)}")
     print(f"Macro-avg accuracy: {metrics.get_macro_accuracy(cm)}")
 
-
     auc_per_class = metrics.get_auc_per_class(y_true, y_probas, num_classes)
-    print(f"AUC per class {auc_per_class}")
+    print(f"AUC per class: {auc_per_class}")
+    print(f"Average AUC: {th.mean(auc_per_class)}")
 
     fpr, tpr = metrics.get_fpr_tpr(y_true, y_probas, num_classes)
 
